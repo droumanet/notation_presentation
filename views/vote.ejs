@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vote - Notation orale</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.9.3/dist/semantic.min.css" />
+  <style>
+    body { background: #f4f6f8; padding-top: 30px; }
+    .ui.container { max-width: 550px !important; }
+    .critere-bloc { margin-bottom: 30px; }
+    .valeur-affichee { font-size: 1.4em; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="ui container">
+    <div class="ui segment">
+      <h1 class="ui header">
+        <i class="clipboard check icon"></i>
+        <div class="content">Notation de la présentation</div>
+      </h1>
+
+      <div id="message" class="ui message" style="display:none;"></div>
+
+      <form id="formVote" class="ui form">
+        <div class="field">
+          <label for="prenom">Votre prénom</label>
+          <input type="text" id="prenom" name="prenom" required placeholder="Entrez votre prénom" />
+        </div>
+
+        <div class="ui divider"></div>
+
+        <% criteres.forEach(critere => { %>
+          <div class="critere-bloc">
+            <label for="<%= critere.id %>">
+              <%= critere.label %> :
+              <span class="valeur-affichee ui blue text" id="val_<%= critere.id %>">0</span>
+            </label>
+            <input
+              type="range"
+              id="<%= critere.id %>"
+              name="<%= critere.id %>"
+              min="-2"
+              max="2"
+              step="1"
+              value="0"
+              style="width:100%; margin-top:10px;"
+              oninput="document.getElementById('val_<%= critere.id %>').textContent = this.value"
+            />
+            <div class="ui mini steps" style="width:100%; margin-top:5px;">
+              <div class="step"><span>-2</span></div>
+              <div class="step"><span>-1</span></div>
+              <div class="step"><span>0</span></div>
+              <div class="step"><span>+1</span></div>
+              <div class="step"><span>+2</span></div>
+            </div>
+          </div>
+        <% }) %>
+
+        <button type="submit" id="btnEnvoyer" class="ui primary fluid button large">
+          <i class="paper plane icon"></i> Envoyer mon vote
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const form = document.getElementById("formVote");
+    const messageDiv = document.getElementById("message");
+
+    function afficherMessage(texte, type) {
+      messageDiv.textContent = texte;
+      messageDiv.className = `ui message ${type}`;
+      messageDiv.style.display = "block";
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const prenom = document.getElementById("prenom").value;
+      const notes = {
+        clarte_oral: document.getElementById("clarte_oral").value,
+        clarte_explication: document.getElementById("clarte_explication").value,
+        qualite_demo: document.getElementById("qualite_demo").value,
+        cahier_charges: document.getElementById("cahier_charges").value,
+      };
+
+      socket.emit("nouveau_vote", { prenom, notes });
+    });
+
+    socket.on("vote_confirme", () => {
+      afficherMessage("✅ Votre vote a bien été enregistré. Merci !", "positive");
+      form.style.display = "none";
+    });
+
+    socket.on("erreur_vote", (erreur) => {
+      afficherMessage(`❌ ${erreur}`, "negative");
+    });
+
+    socket.on("votes_reset", () => {
+      form.reset();
+      form.style.display = "block";
+      document.querySelectorAll(".valeur-affichee").forEach(el => el.textContent = "0");
+      afficherMessage("🔄 Une nouvelle présentation commence, vous pouvez voter !", "info");
+    });
+  </script>
+</body>
+</html>

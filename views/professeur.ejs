@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Espace Professeur - Notation</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.9.3/dist/semantic.min.css" />
+  <style>
+    body { background: #f4f6f8; padding-top: 30px; }
+    .ui.container.large { max-width: 950px !important; }
+    .positif { color: #21ba45; font-weight: bold; }
+    .negatif { color: #db2828; font-weight: bold; }
+    .neutre  { color: #767676; }
+  </style>
+</head>
+<body>
+  <div class="ui container large">
+    <div class="ui segment">
+      <h1 class="ui header">
+        <i class="chalkboard teacher icon"></i>
+        <div class="content">Tableau de bord - Notation en direct</div>
+      </h1>
+
+      <div class="ui grid middle aligned">
+        <div class="eight wide column">
+          <button id="btnReset" class="ui red button">
+            <i class="redo icon"></i> Réinitialiser les votes
+          </button>
+          <button id="btnFiger" class="ui blue button">
+            <i class="clipboard list icon"></i> Récupérer le résultat final
+          </button>
+        </div>
+        <div class="eight wide column right aligned">
+          <span id="compteur" class="ui large label">
+            <i class="users icon"></i> 0 vote(s) reçu(s)
+          </span>
+        </div>
+      </div>
+
+      <div class="ui divider"></div>
+
+      <table id="tableVotes" class="ui celled striped table">
+        <thead>
+          <tr>
+            <th>Prénom</th>
+            <% criteres.forEach(critere => { %>
+              <th><%= critere.label %></th>
+            <% }) %>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="corpsTable">
+          <!-- Rempli dynamiquement -->
+        </tbody>
+        <tfoot class="full-width">
+          <tr>
+            <th><strong>Moyenne</strong></th>
+            <% criteres.forEach(critere => { %>
+              <th id="moy_<%= critere.id %>">-</th>
+            <% }) %>
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div id="resultatFinal" class="ui positive message" style="display:none;">
+        <div class="header">📊 Résultat final</div>
+        <pre id="contenuResultat"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const criteres = <%- JSON.stringify(criteres) %>;
+    const corpsTable = document.getElementById("corpsTable");
+    const compteur = document.getElementById("compteur");
+
+    function majTableau(etat) {
+      compteur.innerHTML = `<i class="users icon"></i> ${etat.nbVotes} vote(s) reçu(s)`;
+
+      corpsTable.innerHTML = "";
+      etat.votes.forEach((vote) => {
+        const tr = document.createElement("tr");
+
+        let html = `<td>${vote.prenom}</td>`;
+        criteres.forEach((c) => {
+          const note = vote[c.id];
+          const classe = note > 0 ? "positif" : note < 0 ? "negatif" : "neutre";
+          html += `<td class="${classe}">${note > 0 ? "+" : ""}${note}</td>`;
+        });
+        html += `<td>
+          <button class="ui mini red icon button btn-supprimer" data-id="${vote.id}">
+            <i class="trash icon"></i>
+          </button>
+        </td>`;
+
+        tr.innerHTML = html;
+        corpsTable.appendChild(tr);
+      });
+
+      criteres.forEach((c) => {
+        document.getElementById(`moy_${c.id}`).textContent = etat.moyennes[c.id];
+      });
+
+      document.querySelectorAll(".btn-supprimer").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-id");
+          if (confirm("Supprimer ce vote ?")) {
+            socket.emit("supprimer_vote", id);
+          }
+        });
+      });
+    }
+
+    socket.on("maj_votes", (etat) => {
+      majTableau(etat);
+    });
+
+    document.getElementById("btnReset").addEventListener("click", () => {
+      if (confirm("Confirmer la réinitialisation de tous les votes ?")) {
+        socket.emit("reset_votes");
+        document.getElementById("resultatFinal").style.display = "none";
+      }
+    });
+
+    document.getElementById("btnFiger").addEventListener("click", () => {
+      const resultatDiv = document.getElementById("resultatFinal");
+      const contenu = document.getElementById("contenuResultat");
+
+      let texte = "";
+      criteres.forEach((c) => {
+        const val = document.getElementById(`moy_${c.id}`).textContent;
+        texte += `${c.label} : ${val}\n`;
+      });
+
+      contenu.textContent = texte;
+      resultatDiv.style.display = "block";
+    });
+  </script>
+</body>
+</html>
